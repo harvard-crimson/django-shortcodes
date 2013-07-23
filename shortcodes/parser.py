@@ -1,7 +1,7 @@
 import re
 import shortcodes.parsers
 from django.core.cache import cache
-
+from django.conf import settings
 
 def import_parser(name):
     mod = __import__(name)
@@ -31,17 +31,24 @@ def parse(value):
             args = {}
 
         item = re.escape(item)
-        try:
-            if cache.get(item):
-                parsed = re.sub(r'\[' + item + r'\]', cache.get(item), parsed)
-            else:
-                module = import_parser('shortcodes.parsers.' + name)
+        if cache.get(item):
+            parsed = re.sub(r'\[' + item + r'\]', cache.get(item), parsed)
+        else:
+            module = None
+
+            try:
+                try:
+                    module = import_parser('shortcodes.parsers.' + name)
+                except ImportError:
+                    module = import_parser('crimsononline.content.templatetags.shortcodes_parsers.' + name)
+            except ImportError:
+                pass
+
+            if module:
                 function = getattr(module, 'parse')
                 result = function(args)
                 cache.set(item, result, 3600)
-                parsed = re.sub(r'\[' + item + r'\]', result, parsed)
-        except ImportError:
-            pass
+                parsed = re.sub(r'\[' + item + r'\]', result, parsed)                
 
     return parsed
 
